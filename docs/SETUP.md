@@ -96,7 +96,9 @@ Edit the CSV and run it again with your own scenarios (a duplicate name, a depar
 5. Test delegated authentication: sign in at `https://<org>.okta.com` as an AD user with their AD password; Okta Verify enrolment is required.
 6. Sign-on policy: **Security > Networks** add IP zone `Corporate-Office`; **Security > Global Session Policy** add a policy for `GG_IT_ServiceDesk_Admins` with a rule: IP **not in** `Corporate-Office` > Access **Denied**. Test and investigate with **Reports > System Log** (TKT-005).
 
-**Evidence:** agent running, import review, users active, MFA enrolment prompt, System Log DENY event.
+7. SAML SSO: **Applications > Browse App Catalog** > *RSA SAML Test Service Provider*. Assign it to `GG_Claims`. Check the app's **Sign On > User authentication** policy against the authenticators users actually have (TKT-007). Test from a Claims user's dashboard, then confirm a non-Claims user is refused.
+
+**Evidence:** agent running, import review, users active, MFA enrolment prompt, System Log DENY event, SAML attributes received, unassigned user denied.
 
 ## Phase 5: Monitoring with Wazuh
 

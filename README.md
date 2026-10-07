@@ -1,6 +1,6 @@
 # Hybrid Identity & Access Management Lab
 
-A home lab that runs the day-to-day work of an enterprise IAM team: role-based access in Active Directory, automated joiner/mover/leaver provisioning, privileged access controls, hybrid cloud identity with Okta (AD sync, delegated authentication, MFA and sign-on policy), identity threat detection in Wazuh, and documented troubleshooting of real identity faults.
+A home lab that runs the day-to-day work of an enterprise IAM team: role-based access in Active Directory, automated joiner/mover/leaver provisioning, privileged access controls, hybrid cloud identity with Okta (AD sync, delegated authentication, MFA, sign-on policy and SAML 2.0 single sign-on), identity threat detection in Wazuh, and documented troubleshooting of real identity faults.
 
 Everything here was built and tested by hand. The [build log](docs/BUILD-LOG.md) records each step with screenshots, including the problems found along the way.
 
@@ -15,6 +15,7 @@ flowchart LR
     AD -- Okta AD agent<br/>scoped import --> OKTA[(Okta)]
     OKTA -- delegated authentication --> AD
     OKTA --> POL[MFA + sign-on policy<br/>network zones]
+    OKTA -- SAML 2.0 assertion --> APP[SAML application<br/>assigned to GG_Claims]
     AD -- Security events<br/>Wazuh agent --> WZ[Wazuh SIEM<br/>11 custom IAM rules]
     AD --> AR[Get-AccessReview.ps1]
 ```
@@ -37,6 +38,7 @@ flowchart LR
 | Privileged access | Separate `adm-` account, non-delegatable; service desk delegated reset and unlock rights only, verified allowed and denied | Phase 3 |
 | Hybrid identity | Okta AD agent with OU-scoped import, delegated authentication against AD, mandatory MFA | Phase 4 |
 | Sign-on policy | Network-zone-based block for a privileged group, diagnosed through the Okta System Log | TKT-005 |
+| Single sign-on | SAML 2.0 app assigned by AD group, with its own authentication policy; unassigned user denied | Phase 4, TKT-007 |
 | Detection | 11 Wazuh rules: lifecycle, failed authentication, lockout, brute-force correlation, privileged and out-of-hours group changes (MITRE T1110, T1098), all verified firing | Phase 5 |
 | Governance | Access review for stale accounts, non-expiring passwords, privileged membership, incomplete leavers and privilege creep | TKT-006 |
 
@@ -52,6 +54,7 @@ Each ticket records the symptom, the investigation with real output, the root ca
 | [TKT-004](tickets/TKT-004-user-not-syncing.md) | New starter missing from Okta | Account created by hand outside the synced OU, bypassing JML |
 | [TKT-005](tickets/TKT-005-mfa-blocked-signin.md) | Service desk analyst cannot sign in | Network-zone policy, then an AD agent timeout reported as "invalid credentials" |
 | [TKT-006](tickets/TKT-006-access-review-findings.md) | Access review findings | Planted issues plus one real unplanted finding |
+| [TKT-007](tickets/TKT-007-saml-app-access-denied.md) | Assigned user cannot open a SAML app | App policy required FastPass; user enrolled with Okta Verify codes |
 
 ## Repository layout
 

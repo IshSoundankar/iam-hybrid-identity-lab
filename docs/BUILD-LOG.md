@@ -234,6 +234,7 @@ A running record of how the lab was built, the decisions made, and the identity-
 | [TKT-002](../tickets/TKT-002-group-added-no-access.md) | Group membership changed but access did not follow | Arose live during the Phase 2 mover test | Session token held `GG_Finance` after AD showed `GG_Claims`; corrected by a fresh logon |
 | [TKT-003](../tickets/TKT-003-password-expired.md) | Correct password refused | Arose from the earlier service desk reset ("must change at next logon") | Generic "rejected the client credentials" error; account showed `PasswordExpired: True` |
 | [TKT-006](../tickets/TKT-006-access-review-findings.md) | Access review findings | Planted problems plus one unplanted finding | Review before and after remediation |
+| [TKT-007](../tickets/TKT-007-saml-app-access-denied.md) | Assigned user cannot open a SAML app | Arose live when the SAML app was first launched (Phase 4) | Policy evaluation DENY on the app's Catch-all Rule; authenticator enrolment mismatch |
 
 ![Lockout traced](screenshots/23-lockout-traced.png)
 
@@ -328,6 +329,20 @@ WS01 was shut down at this point; its remaining uses were complete and the RAM i
 
 - Orla Nolan was created by hand and did not sync. Investigated and resolved in [TKT-004](../tickets/TKT-004-user-not-syncing.md).
 
+**SAML 2.0 single sign-on to an application**
+- Added the RSA SAML Test Service Provider from the Okta app catalog, with Okta as the identity provider sending `firstname`, `lastname` and `email` in the assertion.
+- Assigned the app to the AD-synced group `GG_Claims` only, so access follows department membership managed by JML.
+- The first launch was denied by the app's default authentication policy; diagnosed and fixed with a dedicated app policy in [TKT-007](../tickets/TKT-007-saml-app-access-denied.md).
+- Aoife (Claims) then signed in with her AD password and an Okta Verify code and reached the application through IdP-initiated SSO. The attributes arrived as configured, with her AD UPN as the email.
+
+![SAML SSO success](screenshots/40-saml-sp-success.png)
+
+![Attributes received](screenshots/41-saml-attributes.png)
+
+- Negative test: Sean (not in Claims) had no tile, and opening the app's SSO URL directly returned "User is not assigned to this application", logged as "User attempted unauthorized access to app".
+
+![Sean denied](screenshots/43-saml-sean-denied.png)
+
 ### Findings
 
 **Finding 8: Okta reported "invalid credentials" when the password was never checked**
@@ -339,6 +354,10 @@ WS01 was shut down at this point; its remaining uses were complete and the RAM i
 **Finding 10: Sign-on policy blocks give users no reason, by design**
 - The denied user sees a generic message. Diagnosis depends on the System Log's policy evaluation event, which names the exact policy and rule. Service desk procedures need to include reading it.
 
+**Finding 11: Assignment controls who sees an app; the app policy controls who can open it**
+- A newly added app received the default "Any two factors" policy, which only accepted Okta Verify FastPass as the second factor. Users enrolled with Okta Verify codes could see the tile but not open the app.
+- A dedicated rule then defaulted to "phishing resistant", which excluded the same factor again. Each new app's policy has to be checked against the authenticators users actually hold. Full detail in TKT-007.
+
 ## All phases complete
 
 | Phase | Status |
@@ -348,10 +367,10 @@ WS01 was shut down at this point; its remaining uses were complete and the RAM i
 | 3. Policy and privileged access | Complete |
 | 4. Cloud identity (Okta) | Complete |
 | 5. Monitoring (Wazuh) | Complete |
-| 6. Access review and troubleshooting tickets | Complete (TKT-001 to TKT-006) |
+| 6. Access review and troubleshooting tickets | Complete (TKT-001 to TKT-007) |
 
 ## Possible extensions
 - Wazuh rule for removals from privileged groups (4729/4733/4757) and a test of the NTLM correlation rule
 - Windows LAPS for the local administrator account on WS01
-- Assign a SAML or OIDC application in Okta to demonstrate SSO to a real app
+- An OIDC application and SP-initiated SAML login alongside the IdP-initiated SAML SSO already tested
 - Add an "enabled users outside the Lab OU" check to the access review
