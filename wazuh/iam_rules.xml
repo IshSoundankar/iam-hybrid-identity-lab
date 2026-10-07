@@ -1,0 +1,106 @@
+<!--
+  IAM detection rules for the hybrid identity lab.
+  Install on the Wazuh manager: /var/ossec/etc/rules/iam_rules.xml
+  Then: systemctl restart wazuh-manager
+
+  Source: Windows Security event channel from the domain controller's Wazuh agent.
+  Wazuh's built-in Windows rules already alert on some of these events; these
+  rules add lab-specific grouping, privileged-group escalation and brute-force
+  correlation. Test each one with /var/ossec/bin/wazuh-logtest before relying on it.
+
+  ID range 100100-100199 reserved for this lab.
+-->
+<group name="iam_lab,">
+
+  <!-- Account lifecycle ===================================================== -->
+
+  <rule id="100100" level="5">
+    <if_group>windows</if_group>
+    <field name="win.system.eventID">^4720$</field>
+    <description>IAM: user account created: $(win.eventdata.targetUserName) by $(win.eventdata.subjectUserName)</description>
+    <group>account_lifecycle,</group>
+  </rule>
+
+  <rule id="100101" level="5">
+    <if_group>windows</if_group>
+    <field name="win.system.eventID">^4725$</field>
+    <description>IAM: user account disabled: $(win.eventdata.targetUserName) by $(win.eventdata.subjectUserName)</description>
+    <group>account_lifecycle,</group>
+  </rule>
+
+  <rule id="100102" level="7">
+    <if_group>windows</if_group>
+    <field name="win.system.eventID">^4724$</field>
+    <description>IAM: password reset by another account: $(win.eventdata.targetUserName) reset by $(win.eventdata.subjectUserName)</description>
+    <group>account_lifecycle,</group>
+  </rule>
+
+  <!-- Lockouts and failed authentication ==================================== -->
+
+  <rule id="100103" level="8">
+    <if_group>windows</if_group>
+    <field name="win.system.eventID">^4740$</field>
+    <description>IAM: account locked out: $(win.eventdata.targetUserName), caller computer $(win.eventdata.targetDomainName)</description>
+    <group>authentication_failures,lockout,</group>
+  </rule>
+
+  <rule id="100104" level="4">
+    <if_group>windows</if_group>
+    <field name="win.system.eventID">^4771$</field>
+    <field name="win.eventdata.status">^0x18$</field>
+    <description>IAM: Kerberos pre-auth failed (bad password) for $(win.eventdata.targetUserName) from $(win.eventdata.ipAddress)</description>
+    <group>authentication_failed,</group>
+  </rule>
+
+  <rule id="100105" level="4">
+    <if_group>windows</if_group>
+    <field name="win.system.eventID">^4776$</field>
+    <field name="win.eventdata.status">^0xc000006a$</field>
+    <description>IAM: NTLM bad password for $(win.eventdata.targetUserName) from $(win.eventdata.workstation)</description>
+    <group>authentication_failed,</group>
+  </rule>
+
+  <rule id="100110" level="10" frequency="5" timeframe="120">
+    <if_matched_sid>100104</if_matched_sid>
+    <same_field>win.eventdata.targetUserName</same_field>
+    <description>IAM: 5+ Kerberos bad passwords for one account in 2 minutes (possible brute force or stale credential)</description>
+    <mitre><id>T1110</id></mitre>
+    <group>authentication_failures,</group>
+  </rule>
+
+  <rule id="100111" level="10" frequency="5" timeframe="120">
+    <if_matched_sid>100105</if_matched_sid>
+    <same_field>win.eventdata.targetUserName</same_field>
+    <description>IAM: 5+ NTLM bad passwords for one account in 2 minutes (possible brute force or stale credential)</description>
+    <mitre><id>T1110</id></mitre>
+    <group>authentication_failures,</group>
+  </rule>
+
+  <!-- Group membership changes ============================================== -->
+  <!-- 4728 global, 4732 domain local, 4756 universal. In these events
+       targetUserName is the GROUP and memberName is the user's DN. -->
+
+  <rule id="100120" level="5">
+    <if_group>windows</if_group>
+    <field name="win.system.eventID">^4728$|^4732$|^4756$</field>
+    <description>IAM: $(win.eventdata.memberName) added to group $(win.eventdata.targetUserName) by $(win.eventdata.subjectUserName)</description>
+    <group>group_changed,</group>
+  </rule>
+
+  <rule id="100121" level="12">
+    <if_sid>100120</if_sid>
+    <field name="win.eventdata.targetUserName">^Domain Admins$|^Enterprise Admins$|^Schema Admins$|^Administrators$|^Account Operators$|^Backup Operators$|^Server Operators$</field>
+    <description>IAM: member added to PRIVILEGED group $(win.eventdata.targetUserName): $(win.eventdata.memberName) by $(win.eventdata.subjectUserName)</description>
+    <mitre><id>T1098</id></mitre>
+    <group>group_changed,privilege_escalation,</group>
+  </rule>
+
+  <rule id="100122" level="14">
+    <if_sid>100121</if_sid>
+    <time>7 pm - 7 am</time>
+    <description>IAM: privileged group change OUTSIDE business hours: $(win.eventdata.memberName) added to $(win.eventdata.targetUserName)</description>
+    <mitre><id>T1098</id></mitre>
+    <group>group_changed,privilege_escalation,</group>
+  </rule>
+
+</group>
